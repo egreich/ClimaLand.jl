@@ -19,8 +19,8 @@ import ClimaUtilities.TimeManager as TM
 import ClimaUtilities.TimeManager: date
 import EnsembleKalmanProcesses as EKP
 import EnsembleKalmanProcesses.ParameterDistributions as PD
-#using CairoMakie
-#CairoMakie.activate!()
+using CairoMakie
+CairoMakie.activate!()
 using Statistics
 using Logging
 import Random
@@ -213,11 +213,11 @@ function model(θ::AbstractVector)
 
     #md # Create and run the simulation
     simulation = Simulations.LandSimulation(
-        start_date = start_date,
-        stop_date = stop_date,
-        timestepper = Second(Δt),
-        model = land_model;
-        set_ic = set_ic!,
+        start_date,
+        stop_date,
+        Second(Δt),
+        land_model;
+        set_ic! = set_ic!,
         updateat = Second(Δt),
         user_callbacks = (),
         diagnostics = diagnostics,
@@ -273,18 +273,21 @@ end
 # ---------------- Results Analysis and Visualization ----------------
 
 
-θ̂ = EKP.get_ϕ_mean_final(prior, ekp)
-Γ̂ = unpack_params(θ̂)
-ŷ = model(θ̂)
-rmse = sqrt(mean((ŷ .- observations).^2))
+# θ̂ = EKP.get_ϕ_mean_final(prior, ensemble_kalman_process)
+# Γ̂ = unpack_params(θ̂)
+# ŷ = model(θ̂)
+# rmse = sqrt(mean((ŷ .- observations).^2))
 
-println("\n=== RESULT: OWUS (CWD-only, static) EKP vs tower LE ===")
-println("Site=$(site_ID)  Period=$(start_date)→$(stop_date)")
-@printf "Γ̂ (α0=%.3f, αC=%.3f,  a0=%.3f, aC=%.3f,  b0=%.3f, bC=%.3f)\n" Γ̂.γα0,Γ̂.γαC,Γ̂.γa0,Γ̂.γaC,Γ̂.γb0,Γ̂.γbC
-@printf "RMSE(diurnal LE) = %.2f W m^-2\n" rmse
+# println("\n=== RESULT: OWUS (CWD-only, static) EKP vs tower LE ===")
+# println("Site=$(site_ID)  Period=$(start_date)→$(stop_date)")
+# @printf "Γ̂ (α0=%.3f, αC=%.3f,  a0=%.3f, aC=%.3f,  b0=%.3f, bC=%.3f)\n" Γ̂.γα0,Γ̂.γαC,Γ̂.γa0,Γ̂.γaC,Γ̂.γb0,Γ̂.γbC
+# @printf "RMSE(diurnal LE) = %.2f W m^-2\n" rmse
 
 
 # plot
+dim_size = sum(length.(EKP.batch(prior)))
+fig = CairoMakie.Figure(size = ((dim_size + 1) * 500, 500))
+
 for i in 1:dim_size
     EKP.Visualize.plot_ϕ_over_iters(
         fig[1, i],
@@ -298,7 +301,7 @@ EKP.Visualize.plot_error_over_iters(
     fig[1, dim_size + 1],
     ensemble_kalman_process,
 )
-#CairoMakie.save("constrained_params_and_error.png", fig)
+CairoMakie.save("constrained_params_and_error.png", fig)
 fig
 
 

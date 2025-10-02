@@ -800,24 +800,10 @@ function CanopyModel{FT}(
     z_0m = toml_dict["canopy_momentum_roughness_length"],
     z_0b = toml_dict["canopy_scalar_roughness_length"],
     prognostic_land_components = (:canopy,),
-<<<<<<< HEAD
     autotrophic_respiration = AutotrophicRespirationModel{FT}(toml_dict),
     radiative_transfer = TwoStreamModel{FT}(domain, toml_dict),
     photosynthesis = FarquharModel{FT}(domain, toml_dict),
-    conductance = MedlynConductanceModel{FT}(domain, toml_dict),
-=======
-    autotrophic_respiration = AutotrophicRespirationModel{FT}(),
-    radiative_transfer = TwoStreamModel{FT}(domain),
-    photosynthesis = FarquharModel{FT}(domain),
-    #conductance = MedlynConductanceModel{FT}(domain),
-    conductance = OWUSConductanceModel{FT}(
-    domain;
-    canopy_params = hydraulics.parameters,   # PlantHydraulics.PlantHydraulicsParameters
-    soil_params   = soil,                    # Van Genuchten soil params
-    root_params   = roots                   # NamedTuple is fine
-    # met_params  = forcing.atmos,          # include only if this has E0/E0_mps,   # optional
-    ),
->>>>>>> ddd0c547 (before dependency refresh)
+    conductance =  OWUSConductanceModel{FT}(domain, toml_dict),
     soil_moisture_stress = TuzetMoistureStressModel{FT}(toml_dict),
     hydraulics = PlantHydraulicsModel{FT}(domain, toml_dict),
     energy = BigLeafEnergyModel{FT}(toml_dict),

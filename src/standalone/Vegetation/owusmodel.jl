@@ -4,7 +4,9 @@ export OWUSStomatalModel,
        stomatal_conductance!,
        owus_shape_from_climaland,
        build_owus_from_traits,
-       build_owus_from_ClimaLand
+       build_owus_from_ClimaLand,
+        owus_shape_from_Pi, 
+        build_owus_from_Pi
 
 # From Bassiouni et al. 2023
 
@@ -89,6 +91,79 @@ function stomatal_conductance!(
 end
 
 # ============================================
+# Π-space interface: calibrate on ΠR, ΠF, ΠT, ΠS
+# ============================================
+
+"""
+    owus_shape_from_Pi(; ΠR, ΠF, ΠT, ΠS, b=4.38, β_star_frac=0.95, β_w_frac=0.05)
+
+Compute `(fww, s_star, s_w)` directly from the dimensionless Π-groups
+of Bassiouni–Manzoni–Vico (2023) and soil exponent `b`.
+
+Inputs (dimensionless):
+- ΠR = |ψ_g50| / |ψ_x50|
+- ΠF = E0 / (K_P,max * |ψ_g50|)
+- ΠT = (K_SR,max * |ψ_s_sat|) / E0
+- ΠS = |ψ_g50| / |ψ_s_sat|
+
+Other:
+- `b`        : Campbell/Clapp–Hornberger soil exponent (default 4.38)
+- `β_star_frac`: fraction of fww at which `s_star` is defined (default 0.95)
+- `β_w_frac`   : fraction of fww at which `s_w`   is defined (default 0.05)
+
+Returns: NamedTuple `(fww, s_star, s_w)` in promoted float type.
+"""
+function owus_shape_from_Pi(; ΠR::Real, ΠF::Real, ΠT::Real, ΠS::Real,
+                             b::Real=4.38, β_star_frac::Real=0.95, β_w_frac::Real=0.05)
+
+    FT = float(promote_type(typeof(ΠR), typeof(ΠF), typeof(ΠT), typeof(ΠS), typeof(b),
+                            typeof(β_star_frac), typeof(β_w_frac)))
+
+    ΠR, ΠF, ΠT, ΠS = FT(ΠR), FT(ΠF), FT(ΠT), FT(ΠS)
+    b = FT(b); β_star_frac = FT(β_star_frac); β_w_frac = FT(β_w_frac)
+
+    # --- Closed-form fww (same algebra as trait-based path) ---
+    halfΠF = ΠF / 2
+    rad = (halfΠF + 1)^2 - 2 * ΠF * ΠR
+    rad = max(rad, eps(FT))            # guard for tiny negatives from rounding
+    fww = one(FT) - (one(FT) / (2 * ΠR)) * (one(FT) + halfΠF - sqrt(rad))
+
+    # --- s(β) helper (Eq. 5 mapping β -> s) ---
+    @inline function s_of_beta(β_in::FT)
+        β = clamp(β_in, zero(FT), one(FT))
+        # num = (4 * β * ΠS^2 / ΠT) * ((2*(1-β) - β*ΠF) / (1 - (1-β)*ΠR))
+        denom = one(FT) - (one(FT) - β) * ΠR
+        denom = ifelse(abs(denom) < sqrt(eps(FT)), sign(denom) * sqrt(eps(FT)), denom)
+        termA = (4 * β * ΠS * ΠS) / max(ΠT, eps(FT))
+        termB = (2 * (one(FT) - β) - β * ΠF) / denom
+        inner = sqrt(max(one(FT) + termA * termB, eps(FT))) - one(FT)
+        base  = (ΠT / (2 * β * ΠS)) * inner
+        s = (max(base, eps(FT)))^(-one(FT)/b)
+        return clamp(s, zero(FT), one(FT))
+    end
+
+    s_star = s_of_beta(β_star_frac * fww)
+    s_w    = s_of_beta(β_w_frac   * fww)
+
+    return (fww=FT(fww), s_star=FT(s_star), s_w=FT(s_w))
+end
+
+"""
+    build_owus_from_Pi(; ΠR, ΠF, ΠT, ΠS, b=4.38, β_star_frac=0.95, β_w_frac=0.05, gsw_max=Inf)
+        -> OWUSStomatalModel
+
+Convenience constructor: take Π-groups (and `b`) and return an `OWUSStomatalModel`.
+Useful when calibrating Π directly via EKI/MCMC/etc.
+"""
+function build_owus_from_Pi(; ΠR::Real, ΠF::Real, ΠT::Real, ΠS::Real,
+                              b::Real=4.38, β_star_frac::Real=0.95, β_w_frac::Real=0.05,
+                              gsw_max::Real=Inf)
+    pars = owus_shape_from_Pi(; ΠR=ΠR, ΠF=ΠF, ΠT=ΠT, ΠS=ΠS,
+                               b=b, β_star_frac=β_star_frac, β_w_frac=β_w_frac)
+    return OWUSStomatalModel(fww=pars.fww, s_star=pars.s_star, s_w=pars.s_w, gsw_max=gsw_max)
+end
+
+# ============================================
 # Diagnostics: traits → (fww, s*, s_w)
 # ============================================
 
@@ -160,11 +235,9 @@ function build_owus_from_traits(; kwargs...)
 end
 
 # ------------------------------
-# ClimaLand struct auto-plumbing
+# ClimaLand struct
 # ------------------------------
-# We avoid hard dependencies on specific ClimaLand types by soft-getting
-# common field names with graceful fallbacks. Adjust the symbol lists
-# below to match your branch if needed.
+# avoid hard dependencies on specific ClimaLand types by soft-getting common field names
 
 # Get first present field among a list of candidate names; return `default` if none.
 @inline function _getfirst(x, names::NTuple{N,Symbol}, default=nothing) where {N}
