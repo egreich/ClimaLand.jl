@@ -1,7 +1,7 @@
 name = "ClimaLand"
 uuid = "08f4d4ce-cf43-44bb-ad95-9d2d5f413532"
-authors = ["Clima Land Team"]
 version = "0.20.1"
+authors = ["Clima Land Team"]
 
 [deps]
 ClimaComms = "3a4d1b5c-c61d-41fd-a00a-5873ba7a1b0d"
@@ -66,7 +66,7 @@ LazyBroadcast = "1.0.0"
 LinearAlgebra = "1"
 NCDatasets = "0.14"
 Printf = "1"
-SciMLBase = "2.68"
+SciMLBase = "2.68, 3"
 StaticArrays = "1.9"
 StatsBase = "0.34"
 SurfaceFluxes = "0.12.3"
